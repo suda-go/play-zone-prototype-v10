@@ -33,7 +33,7 @@
   const EMAIL_RE = /^[^\s@<>"'()]+@[^\s@<>"'()]+\.[a-z]{2,}$/i;
 
   /* 演示平台：默认按浏览器判断（iPhone / iPad 是 iOS），可以手动切换，切换结果单独存，不随重置演示清掉 */
-  const PLAT_KEY = 'pz.platform.v7';
+  const PLAT_KEY = 'pz.platform.v10';
   const detectIOS = () => /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   function platform() {
     try {
@@ -154,7 +154,7 @@
     App.root('play', {}, { anim: 'fade' });
     runEnter();
     App.whenIdle(() => {
-      if (idt.by === 'guest') UI.toast('已用游客身份进入，可在设置里绑定账号', 3000);
+      if (idt.by === 'guest') UI.toast('已用游客身份进入', 3000);
       else UI.toast(first ? `${BY_NAME[idt.by]}登录成功` : `欢迎回来，${UI.esc(s.user.name)}`);
     });
   }
@@ -381,39 +381,37 @@
     render(el) {
       el.innerHTML = `
         <div class="lg-bg"><img src="${IMG}fx/galaxy.jpg" alt=""><i></i></div>
-        <button class="lg-plat" data-act="plat" aria-label="切换演示平台">演示 · ${isIOS() ? 'iOS' : 'Android'}${UI.ic('refresh', 12)}</button>
         <div class="lg-hero">
           <img class="lg-icon" src="${IMG}brand/app-icon.png" alt="">
           <h1 class="lg-name">Soulgame</h1>
           <p class="lg-slogan">Soulgame, play with your soulmates.</p>
           <img class="lg-art" src="${IMG}brand/blobs-vs.png" alt="">
-          <p class="lg-online"><i class="live-dot"></i>${UI.fmt(D.game[D.GAME].online)}人正在下四子棋</p>
+          <p class="lg-online"><i class="live-dot"></i>超过1000人正在一起玩游戏</p>
         </div>
         <div class="lg-panel">
-          <div class="lg-btns">${btnsHtml()}</div>
-          <button class="lg-guest" data-act="guest">${UI.ic('user', 17)}游客模式，直接进入${UI.ic('right', 16)}</button>
-          <p class="lg-terms">登录即表示你同意<button data-act="terms">《用户协议》</button>和<button data-act="terms">《隐私政策》</button></p>
+          <button class="btn btn-orange btn-lg btn-block lg-start" data-act="guest">${UI.ic('play', 20)}开始游戏</button>
+          <p class="lg-terms">点击即表示你同意<button data-act="terms">《用户协议》</button>和<button data-act="privacy">《隐私政策》</button></p>
         </div>`;
     },
     // 登录页是启动页：返回键退出 app
     back() { if (window.Channel) Channel.exit(); return false; },
     act: {
-      apple: () => apple(),
-      google: () => google(),
-      facebook: () => facebook(),
-      // 用过邮箱登录（或在本机注册过）先显示登录，否则先显示注册
-      email: () => openEmail({ mode: Store.s.lastBy === 'email' || Object.keys(Store.s.accounts).length ? 'login' : 'register' }),
-      guest: () => enter(idGuest()),
-      terms: () => UI.demo('协议页面'),
-      // 演示：切换 Android / iOS（iOS 才有 Apple 登录）
-      plat: () => {
-        const ios = !isIOS();
-        setPlatform(ios ? 'ios' : 'android');
-        App.refresh('login');
-        UI.toast(ios ? '已切换为 iOS 演示，显示“通过 Apple 登录”' : '已切换为 Android 演示，不显示 Apple 登录');
-      },
+      // 首发 1.0 只有一种进入方式：游客。创建或恢复本机的游客账号
+      guest: () => startGuest(),
+      terms: () => Legal.open('terms'),
+      privacy: () => Legal.open('privacy'),
     },
   });
+  let entering = false;
+  async function startGuest() {
+    if (entering) return; // 请求返回前再点不响应
+    entering = true;
+    const b = document.querySelector('.page[data-page="login"] .lg-start');
+    if (b) { b.disabled = true; b.innerHTML = '<i class="gg-spin"></i>请稍候…'; }
+    await UI.sleep(500);
+    entering = false;
+    enter(idGuest());
+  }
 
   /* ================= 邮箱登录 / 注册 ================= */
   // 表单状态（不存盘）：sent 是最近一次发出的验证码 { email, code, at }
@@ -579,16 +577,13 @@
   /* ================= 注销账号 ================= */
   // 入口：设置 → 账号 → 注销账号。须知页勾选 → 申请注销 → 对局中拦截 → 自动续费提醒 → 身份验证 → 5 秒倒计时确认 → 清除数据回登录页
   const DEL_ITEMS = [
-    ['账号', 'Soulgame 账号、展示 ID，以及和 Google、Facebook、Apple、邮箱的关联'],
-    ['个人资料', '昵称、头像、个性签名、主页背景'],
-    ['资产', '金币、背包里的装扮、会员和剩余的会员时长'],
-    ['社交', '好友关系、好友申请、聊天记录'],
-    ['游戏', '对局记录、战绩、任务和签到进度'],
+    ['账号', 'Soulgame 游客账号、展示 ID'],
+    ['资产', '金币'],
+    ['游戏', '对局记录'],
   ];
   const delNotes = () => [
-    '剩余的金币和会员时长会作废，不退款',
-    `会员是自动续费的，注销账号不会自动取消订阅，需要先到 ${storeName()} 取消`,
-    '注销后用同一个 Google、Facebook、Apple 账号或邮箱可以重新注册，但得到的是全新的账号，原来的数据不会恢复',
+    '剩余的金币作废，不退款',
+    '注销后再打开 app 会得到一个全新的游客账号，原来的数据不会恢复',
   ];
   let delAgree = false;
 

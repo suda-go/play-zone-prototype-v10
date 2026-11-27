@@ -262,8 +262,7 @@
   UI.tabbar = (active) => {
     const tabs = [
       ['play', '游戏', `<img class="tab-glove g1" src="${D.IMG}ui/glove-blue.png" alt=""><img class="tab-glove g2" src="${D.IMG}ui/glove-red.png" alt="">`, ''],
-      ['chat', '消息', `<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${TAB_IC_REF.chat}</svg>`, UI.count('chat')],
-      ['me', '我的', `<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${TAB_IC_REF.me}</svg>`, UI.dot('requests')],
+      ['me', '我的', `<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${TAB_IC_REF.me}</svg>`, ''],
     ];
     return `<nav class="tabbar">${tabs.map(([id, label, icon, badge]) => `<button class="tab ${id === active ? 'is-active' : ''}" data-tab="${id}">
       <span class="tab-ic tab-ic-${id}">${icon}${badge}</span><span class="tab-label">${label}</span></button>`).join('')}</nav>`;

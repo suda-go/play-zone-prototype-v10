@@ -1,0 +1,31 @@
+/* 首发 1.0：在 V7 样式上做的少量调整 */
+
+/* 首页：只有快速开始和本地对战，本地对战独占一行 */
+.hm-tile.is-wide { grid-column: 1 / -1; height: 112px; padding: 14px 18px; }
+.hm-tile.is-local.is-wide .hm-art { right: -10px; bottom: -14px; width: 150px; }
+.hm-tile.is-local.is-wide .hm-name { font-size: 22px; }
+.hm-tile.is-local.is-wide .hm-desc { margin-top: 2px; }
+.hm-tile.is-local.is-wide .hm-free { margin-top: auto; }
+
+/* 登录页：一个“开始游戏”按钮 */
+.lg-panel .lg-start { height: 54px; border-radius: 27px; font-size: 18px; gap: 8px; }
+.lg-panel .lg-start .gg-spin { width: 18px; height: 18px; }
+.lg-panel .lg-terms { margin-top: 14px; }
+
+/* 我的页：没有签名一行，资料卡紧凑一点 */
+.me-card.is-compact { padding-bottom: 14px; }
+
+/* 结算页：对手头像可以点，打开资料卡举报 */
+.rs-av { display: block; padding: 0; background: none; border: 0; border-radius: 50%; position: relative; }
+.rs-av:active { transform: scale(.96); }
+
+/* 金币不足弹窗：免费补助已用完（灰色，不可点）、换个场次 */
+.lack-op.is-off { background: #f0f1f5; color: var(--text-3); }
+.lack-op.is-off b { color: var(--text-2); }
+.lack-vip-ic.is-off { background: #e3e5ec; color: #9aa0b2; }
+.lack-vip-ic.is-blue { background: linear-gradient(135deg, #5aa8ff, #2f67e6); color: #fff; }
+
+/* 协议和隐私政策（演示摘要） */
+.legal { padding: 2px 4px 18px; }
+.legal h4 { margin: 14px 0 4px; font-size: 14.5px; }
+.legal p { margin: 0; font-size: 13px; line-height: 1.65; color: var(--text-2); }

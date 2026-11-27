@@ -420,7 +420,7 @@ window.C4 = (() => {
     const tap = who === 2 && !p.ai && !p.local;
     const tag = tap ? 'button' : 'span';
     return `<div class="gm-pl p${who}">
-      <${tag} class="gm-av${tap ? ' is-tap' : ''}"${tap ? ' data-act="opp" aria-label="查看对手资料"' : ''}><svg class="gm-ring" viewBox="0 0 70 70"><circle cx="35" cy="35" r="32"/></svg>${UI.av(uid, 54)}<span class="gm-pop"></span><i class="gm-voice" aria-hidden="true"><b></b><b></b><b></b></i>${tap && canAdd(uid) ? '<i class="gm-add" aria-hidden="true">+</i>' : ''}</${tag}>
+      <${tag} class="gm-av${tap ? ' is-tap' : ''}"${tap ? ' data-act="opp" aria-label="查看对手资料"' : ''}><svg class="gm-ring" viewBox="0 0 70 70"><circle cx="35" cy="35" r="32"/></svg>${UI.av(uid, 54)}<span class="gm-pop"></span></${tag}>
       <b>${uid === 'me' ? '你' : UI.esc(p.name)}${p.ai ? ' <i class="ai-tag">AI</i>' : ''}</b>
       <span class="gm-chip"><i class="disc p${who}"></i>${who === 1 ? '蓝方' : '红方'}</span>
     </div>`;
@@ -503,10 +503,10 @@ window.C4 = (() => {
     clearInterval(G.tick);
     C4.paint(board(), row, col, 1);
     Sfx.play('drop');
-    G.el.querySelector('.gm-moves').textContent = G.moves;
+    { const e = G.el.querySelector('.gm-moves'); if (e) e.textContent = G.moves; }
     if (threats.includes(col)) {
       G.blocks += 1;
-      G.el.querySelector('.gm-blocks').textContent = G.blocks;
+      { const e = G.el.querySelector('.gm-blocks'); if (e) e.textContent = G.blocks; }
       flash(`${UI.ic('shield', 22)} 堵住了！`, 'is-block');
       if (G.blocks === 3) Store.badge('wall');
       if (Math.random() < 0.5) later(() => emote('opp', UI.pick(['angry', 'shock', 'cry'])), 900);
@@ -539,7 +539,7 @@ window.C4 = (() => {
     G.moves += 1;
     C4.paint(board(), row, col, who);
     Sfx.play('drop');
-    G.el.querySelector('.gm-moves').textContent = G.moves;
+    { const e = G.el.querySelector('.gm-moves'); if (e) e.textContent = G.moves; }
     settle(who);
   }
   /** V7 本地对战结束：不结算金币和战绩，弹窗问要不要再来一局（输的一方先下） */
@@ -612,7 +612,7 @@ window.C4 = (() => {
     el.classList.add('is-show');
   }
   function emote(side, type, text) {
-    if (!G) return;
+    if (!G || !G.el.querySelector('.gm-dm')) return;
     const uid = side === 'me' ? 'me' : G.opp;
     const content = text ? `<span class="dm-txt">${UI.esc(text)}</span>` : UI.blob(type, 34);
     danmaku(uid, content, side === 'me');
@@ -636,7 +636,7 @@ window.C4 = (() => {
   /* ---------- C 局内语音（演示：只做开关和说话动效，不接真实语音） ---------- */
   const oppIsAI = () => !!(G && D.people[G.opp] && D.people[G.opp].ai);
   function voiceUI() {
-    if (!G) return;
+    if (!G || !G.el.querySelector('.gm-mic')) return;
     const v = Store.s.voice;
     const el = G.el;
     const mic = el.querySelector('.gm-mic');
@@ -694,65 +694,36 @@ window.C4 = (() => {
     UI.toast(v.spk ? '已打开对手声音' : '已静音对手');
   }
 
-  /* ---------- V5 对局中点对手头像：看资料、直接加好友、举报（对局照常进行，计时不暂停） ---------- */
-  function oppSheet() {
-    if (!G) return;
-    const uid = G.opp;
+  /* ---------- 首发 1.0 对手资料卡：只看资料和举报（没有好友，不能加好友）。对局中和结算页都能打开 ---------- */
+  // ctx：对局中是 G，结算页是结算页的参数；ctx.reported 记这一局有没有举报过这个对手
+  const REASONS = ['作弊或挂机', '其他'];
+  const REPORT_MAX = 20; // 一个用户一天最多提交 20 条举报（建议）
+  function showOpp(uid, ctx, ownFn) {
     const P = D.people[uid];
     if (!P || P.ai) return;
-    const played = Math.max(Store.s.history.filter((h) => h.vs === uid).length, Store.s.mateGames[uid] || 0);
-    const btn = () => {
-      if (Store.isFriend(uid)) return `<span class="btn is-disabled btn-lg btn-block">${UI.ic('userCheck', 18)} 已是好友</span>`;
-      if (Store.s.sent.includes(uid)) return `<span class="btn is-disabled btn-lg btn-block">${UI.ic('check', 18)} 已发送好友申请</span>`;
-      if (Store.s.requests.includes(uid)) return `<button class="btn btn-primary btn-lg btn-block" data-act="accept">${UI.ic('userCheck', 18)} 同意好友申请</button>`;
-      return `<button class="btn btn-primary btn-lg btn-block" data-act="add">${UI.ic('userPlus', 18)} 加好友</button>`;
-    };
-    const done = () => {
-      if (!c.closed) c.$('.op-btn').innerHTML = btn();
-      if (G && G.opp === uid) G.el.querySelector('.gm-pl.p2 .gm-add')?.remove();
-    };
-    const c = own(UI.sheet({
+    const live = !!(G && ctx === G);
+    const played = Store.s.history.filter((h) => h.vs === uid).length;
+    const keep = ownFn || ((x) => x);
+    const c = keep(UI.sheet({
       cls: 'sheet-opp',
       html: `<div class="op-hd">${UI.av(uid, 64, { on: true })}<div class="op-m"><h3>${UI.name(uid)}</h3><p>${UI.esc(P.bio || '这个人很懒，什么都没写')}</p></div>
           <button class="op-report" data-act="report">${UI.ic('flag', 14)}举报</button></div>
         <div class="op-stats"><span><b>${P.games}</b>对局</span><span><b>${P.win}%</b>胜率</span><span><b>${played}</b>和你玩过</span></div>
-        <div class="op-btn">${btn()}</div>
-        <p class="op-tip">${UI.ic('info', 13)} 对局还在进行，计时不会暂停</p>`,
-      acts: {
-        add: () => {
-          Store.request(uid);
-          done();
-          UI.toast('好友申请已发送');
-          // 演示：真人几秒后通过；补位的机器人不会通过，申请一直是“已申请”
-          if (G && G.p.bot) return;
-          setTimeout(() => {
-            if (!Store.s.sent.includes(uid)) return;
-            Store.addFriend(uid);
-            done();
-            // 还在这一局里：轻提示，不挡住对手信息；对局已经结束：和结算页加好友一样弹通知，可以直接去聊天
-            if (G && G.opp === uid && !G.over) { UI.toast(`${P.name}通过了你的好友申请`); return; }
-            UI.notify({ img: P.avatar, title: `${P.name}通过了你的好友申请`, text: '你们已经是好友了，打个招呼吧！', btn: '聊天', onTap: () => App.go('dm', { id: uid }) });
-            const tag = document.querySelector('.page[data-page="result"].is-active .rs-mate .rs-friend');
-            if (tag) tag.outerHTML = `<span class="rs-friend is-done">${UI.ic('userCheck', 14)} 已是好友</span>`;
-          }, 5000);
-        },
-        accept: () => {
-          Store.addFriend(uid);
-          done();
-          UI.toast(`你和${P.name}已经是好友了`);
-        },
-        report: () => { c.close(); report(uid); },
-      },
+        ${live ? `<p class="op-tip">${UI.ic('info', 13)} 对局还在进行，计时不会暂停</p>` : ''}`,
+      acts: { report: () => { c.close(); report(uid, ctx, ownFn); } },
     }));
   }
+  function oppSheet() { if (G) showOpp(G.opp, G, own); }
 
-  /* ---------- V7 举报（对手资料卡右上角）：原因四选一，可补充说明；同一局只能举报同一人一次，对局照常进行 ---------- */
-  const REASONS = ['辱骂和骚扰', '不良语音', '作弊或挂机', '其他'];
-  function report(uid) {
-    if (!G) return;
-    if (G.reported) { UI.toast('已收到举报，我们会尽快处理'); return; }
+  /** 举报：原因二选一（1.0 没有聊天和语音），可补充说明；同一局只能举报同一人一次，对局照常进行 */
+  function report(uid, ctx, ownFn) {
+    if (ctx.reported) { UI.toast('已收到举报，我们会尽快处理'); return; }
+    const day = new Date().toDateString();
+    const rep = Store.s.rep && Store.s.rep.d === day ? Store.s.rep : { d: day, n: 0 };
+    if (rep.n >= REPORT_MAX) { UI.toast('今天的举报太多了，明天再试'); return; }
     let reason = '';
-    const c = own(UI.sheet({
+    const keep = ownFn || ((x) => x);
+    const c = keep(UI.sheet({
       title: '举报',
       cls: 'sheet-report',
       html: `<div class="rp-list">${REASONS.map((r) => `<button class="rp-opt" data-act="reason" data-r="${r}"><span>${r}</span><i class="rp-radio"></i></button>`).join('')}</div>
@@ -761,19 +732,22 @@ window.C4 = (() => {
       acts: {
         reason: (el) => {
           reason = el.dataset.r;
-          c.panel.querySelectorAll('.rp-opt').forEach((b) => b.classList.toggle('is-on', b === el));
+          c.panel.querySelectorAll('.rp-opt').forEach((x) => x.classList.toggle('is-on', x === el));
           c.$('[data-act="submit"]').disabled = false;
         },
         submit: () => {
           if (!reason) return;
-          // 演示：不发到服务端。正式产品附上这一局的表情、快捷语和对局记录，进入人工审核
-          if (G && G.opp === uid) G.reported = true;
+          // 演示：只记在本机。正式产品附上这一局的对局记录，进入客服的举报列表（机器人的举报自动关闭）
+          ctx.reported = true;
+          Store.s.rep = { d: day, n: rep.n + 1 };
+          Store.save();
           c.close();
           UI.toast('已收到举报，我们会尽快处理');
         },
       },
     }));
   }
+  Battle.showOpp = (uid, ctx) => showOpp(uid, ctx);
 
   /* ---------- E7 中途退出 ---------- */
   async function quit() {
@@ -841,7 +815,7 @@ window.C4 = (() => {
     if (!G) return;
     clearAll();
     closeOwn();
-    const { p, g, opp, blocks, moves } = G;
+    const { p, g, opp, blocks, moves, reported } = G;
     const sec = Math.max(1, Math.round((Date.now() - G.t0) / 1000));
     const min = !!G.min;
     const board = C4.copy(G.board);
@@ -878,7 +852,7 @@ window.C4 = (() => {
     const params = {
       game: g.id, mode: p.mode, room: p.room || '', opp, outcome, stake: st.id,
       forfeit: opt.forfeit ? 1 : 0, timeout: opt.timeout ? 1 : 0, coins, net,
-      blocks, moves, sec, double: p.double || 0, bet: roomBet, bot: p.bot ? 1 : 0,
+      blocks, moves, sec, double: p.double || 0, bet: roomBet, bot: p.bot ? 1 : 0, reported: reported ? 1 : 0,
     };
     if (min) {
       // 不在对局页：结果先放进悬浮窗，回来再看结算（金币已经到账）
@@ -917,25 +891,8 @@ window.C4 = (() => {
         <div class="gm-stage">
           <div class="gm-turn">准备开始…</div>
           ${C4.html(C4.empty(), { cls: 'is-game', cols: true })}
-          <div class="gm-stats"><span>${UI.ic('shield', 14)} 拦截 <b class="gm-blocks">0</b></span><span>${UI.ic('gamepad', 14)} 步数 <b class="gm-moves">0</b></span>${p.mode === 'quick' || p.mode === 'fast' ? `` : ''}</div>
         </div>
-        <div class="gm-dm"></div>
-        <div class="gm-bar">
-          <button class="gm-btn gm-mic ${v.mic ? 'is-on' : ''}" data-act="mic" aria-label="麦克风" aria-pressed="${v.mic}">${UI.ic(v.mic ? 'mic' : 'micOff', 22)}</button>
-          <button class="gm-btn gm-spk ${v.spk ? 'is-on' : ''}" data-act="spk" aria-label="听对方说话" aria-pressed="${v.spk}">${UI.ic(v.spk ? 'volume' : 'mute', 22)}</button>
-          <i class="gm-bar-gap"></i>
-          <button class="gm-btn" data-act="panel" data-p="phrases" aria-label="快捷语">${UI.ic('msgText', 22)}</button>
-          <button class="gm-btn gm-emo" data-act="panel" data-p="emoji" aria-label="表情">${UI.ic('smile', 24)}</button>
-        </div>
-        <div class="gm-panel" hidden>
-          <div class="gm-panel-hd">
-            <button class="gm-ptab is-active" data-act="ptab" data-p="emoji">表情</button>
-            <button class="gm-ptab" data-act="ptab" data-p="phrases">快捷语</button>
-            <button class="gm-panel-x" data-act="closePanel" aria-label="关闭">${UI.ic('x', 18)}</button>
-          </div>
-          <div class="gm-emojis">${D.emojis.map((e) => `<button class="gm-e" data-act="emo" data-e="${e}">${UI.blob(e, 58)}</button>`).join('')}</div>
-          <div class="gm-phrases" hidden>${D.phrases.map((t) => `<button class="gm-ph" data-act="say" data-t="${UI.esc(t)}">${UI.esc(t)}</button>`).join('')}</div>
-        </div>`;
+`;
     },
     shown(el, p) {
       if (p.restore && G && G.el === el) {
@@ -955,11 +912,6 @@ window.C4 = (() => {
         : `${UI.av(first === 1 ? 'me' : G.opp, 64)}<b>${first === 1 ? '你先手！' : `${name(G.opp)}先手`}</b><span>${p.rematch === 1 ? `${name(G.opp)}接受了再战` : '点一列落子，横竖斜连成4子就赢'}</span>`;
       el.querySelector('.gm-stage').appendChild(intro);
       later(() => { intro.remove(); startTurn(first); }, 1500);
-      voiceUI();
-      if (p.mode !== 'local') {
-        scheduleTalk();
-        later(() => { if (G && G.turn !== 1) emote('opp', UI.pick(['happy', 'wink', 'cool'])); }, 2600);
-      }
     },
     leave() { if (G && G.min) return; closeOwn(); clearAll(); G = null; },
     back() {
@@ -1048,7 +1000,7 @@ window.C4 = (() => {
       : `<span class="rs-gain ${net < 0 ? 'is-neg' : ''}">${UI.cur('coins', 24)}<em>${net > 0 ? '+' : ''}${UI.fmt(net)}</em></span>`;
     return `<div class="rs-card ${me ? 'is-me' : 'is-opp'} ${winner ? 'is-winner' : ''}">
       ${winner ? `<img class="rs-crown" src="${IMG}ui/crown.png" alt="">` : ''}
-      ${UI.av(uid, 70)}
+      ${me || P.ai ? UI.av(uid, 70) : `<button class="rs-av" data-act="opp" aria-label="查看对手资料">${UI.av(uid, 70)}</button>`}
       <b>${me ? UI.esc(Store.s.user.name) : UI.esc(P.name)}${P.ai ? ' <i class="ai-tag">AI</i>' : ''}</b>
       ${gain}
     </div>`;
@@ -1143,13 +1095,10 @@ window.C4 = (() => {
             ${p.timeout ? '<p class="rs-sub">连续2次超时，本局判负</p>' : p.forfeit ? '<p class="rs-sub">你已认输</p>' : p.double && p.outcome === 'win' ? `<p class="rs-sub">${UI.ic('zap', 14)} 奖池翻倍已生效</p>` : p.outcome === 'draw' && (staked(p) || paidRoom(p)) ? `<p class="rs-sub">已退还底注${UI.fmt(paidRoom(p) ? p.bet : st.bet)}金币</p>` : ''}</div>
           <div class="rs-hero ${cls}">${hero(p)}</div>
           <div class="rs-cards">${card('me', p, true)}${card(p.opp, p, false)}</div>
-          ${mateHtml(p)}
           ${practice ? `<div class="rs-panel rs-practice"><p>${UI.ic('bot', 18)} 练习局不影响金币。</p><button class="btn btn-orange btn-md" data-act="ranked">去${st.name} · ${UI.cur('coins', 16)}${UI.fmt(st.bet)}</button></div>` : progress(p)}
-          <div class="rs-tasks-box">${practice ? '' : tasksHtml()}</div>
           <div class="bottom-space" style="height:96px"></div>
         </div>
         <div class="rs-actions">
-          <button class="btn btn-glass btn-lg rs-share" data-act="share" aria-label="分享">${UI.ic('share', 20)}</button>
           ${p.mode === 'room' ? '<button class="btn btn-primary btn-lg rs-again" data-act="toRoom">返回房间</button>'
             : practice ? '<button class="btn btn-primary btn-lg rs-again" data-act="again">再练一局</button>'
               : `<button class="btn btn-primary btn-lg rs-again" data-act="again">再来一局 <span class="btn-price">${UI.cur('coins', 16)}${UI.fmt(st.bet)}</span></button>`}
@@ -1159,7 +1108,6 @@ window.C4 = (() => {
     async shown(el, p) {
       if (p.granted) return;
       p.granted = true;
-      scheduleInvite(p);
       await UI.sleep(450);
       if (p.coins) {
         await UI.fly('coins', el.querySelector('.rs-card.is-me .rs-gain'), p.coins);
@@ -1168,6 +1116,7 @@ window.C4 = (() => {
     },
     leave: () => clearInvite(),
     act: {
+      opp: () => { const p = App.params('result'); Battle.showOpp(p.opp, p); },
       lobby: () => App.backTo('play'),
       toRoom: () => App.pop(),
       again: () => {

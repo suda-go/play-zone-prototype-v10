@@ -34,9 +34,9 @@
   const DUR = 360;
   const EASE = 'cubic-bezier(.32, .72, 0, 1)';
   const HOME = 'play';
-  const TABS = ['play', 'chat', 'me']; // V7 首发版：房间列表 Tab 先不做
+  const TABS = ['play', 'me']; // 首发 1.0：只有“游戏”“我的”两个 Tab
   const LOGIN = 'login';
-  const AUTH_PAGES = ['login', 'email']; // 未登录时能打开的页面
+  const AUTH_PAGES = ['login']; // 未登录时能打开的页面
 
   const pages = new Map();
   const hooks = {};
@@ -50,10 +50,10 @@
   const device = () => document.getElementById('device');
 
   function loadParams() {
-    try { return JSON.parse(sessionStorage.getItem('pz.params.v7')) || {}; } catch (_) { return {}; }
+    try { return JSON.parse(sessionStorage.getItem('pz.params.v10')) || {}; } catch (_) { return {}; }
   }
   function saveParams() {
-    try { sessionStorage.setItem('pz.params.v7', JSON.stringify(params)); } catch (_) { /* 隐私模式下忽略 */ }
+    try { sessionStorage.setItem('pz.params.v10', JSON.stringify(params)); } catch (_) { /* 隐私模式下忽略 */ }
   }
 
   function setActive(id, on) {

@@ -1,6 +1,6 @@
 /**
  * Play 首页（登录后的启动页）。V4 精简成一屏、不用滚动，参考 Yalla Ludo：
- *   顶栏 → 一行四子棋标志 → 快速开始（大卡片，一点就匹配）→ 和好友玩、本地对战。V7 首发版不做赛季、排行榜
+ *   首发 1.0：顶栏（头像、金币）→ 一行四子棋标志 → 快速开始（大卡片，一点就匹配）→ 本地对战。没有和好友玩、签到任务、商城
  *   快速开始一点就匹配；金币分场收进“换场次”弹层
  * 以及启动相关的：B2 新手礼包、B5 退出挽留、B6 离线收益（B3 7 日签到在 tasks.js 顶部）、
  * K3 好友主动发来邀请（V7 首发版不做 C3 回合制对局）
@@ -41,12 +41,9 @@
 
   /* ================= 大厅各区块 ================= */
   function header() {
-    const s = Store.s;
     return `<header class="lobby-top safe-top">
       <button class="lobby-me" data-tab="me" aria-label="我的资料">${UI.av('me', 36)}</button>
-      <div class="lobby-chips">${UI.chips(['coins'])}</div>
-      <button class="icon-btn lobby-sign" data-go="tasks" aria-label="签到和任务"><img src="${IMG}ui/calendar.png" alt="">${UI.count('welfare')}</button>
-      <button class="icon-btn lobby-shop" data-go="shop" aria-label="商城"><img src="${IMG}ui/store.png" alt=""></button>
+      <div class="lobby-chips">${UI.chips(['coins'], { plus: false })}</div>
     </header>`;
   }
 
@@ -72,27 +69,18 @@
   /** 快速开始用的场次（规则见 battle.js 的 pickStake，消息页的“快速开始一局”也用它） */
   const pickStake = () => Battle.pickStake();
 
-  /** 玩法入口：快速开始（最大，放最上面，一点就匹配），下面是和好友玩（线上）、本地对战（同一台手机） */
   function modes() {
     const st = pickStake();
-    const online = Store.s.friends.map((id) => D.people[id]).filter((p) => p && p.online);
-    const hasFriends = Store.s.friends.length > 0;
     return `<div class="hm-modes">
       <div class="hm-tile is-quick is-big">
         <button class="hm-hit" data-act="quick" data-id="${st.id}" aria-label="开始游戏 · ${st.name}"></button>
         <img class="hm-art" src="${IMG}games/c4.jpg" alt="">
         <b class="hm-name">快速开始</b>
-        <span class="hm-desc">和真人实时对战 · 赢家拿走奖池</span>
-        <button class="hm-change" data-act="stakes" aria-label="换场次">${st.vip ? '超级场' : st.name} · ${UI.cur('coins', 14)}${UI.fmt(st.bet)}${UI.ic('down', 13)}</button>
+        <span class="hm-desc">实时对战 · 赢家拿走奖池</span>
+        <button class="hm-change" data-act="stakes" aria-label="换场次">${st.name} · ${UI.cur('coins', 14)}${UI.fmt(st.bet)}${UI.ic('down', 13)}</button>
         <span class="hm-go">${UI.ic('play', 18)}开始游戏</span>
       </div>
-      <button class="hm-tile is-friends" data-act="friends">
-        <img class="hm-art" src="${IMG}brand/mascot-cheer.png" alt="">
-        <b class="hm-name">和好友玩</b>
-        <span class="hm-desc">${hasFriends ? '选入场金币' : '约朋友来下一局'}</span>
-        <span class="hm-avs">${hasFriends ? `${online.slice(0, 3).map((p) => UI.av(p.id, 24)).join('')}<em>${online.length}人在线</em>` : `<i class="hm-avs-add">${UI.ic('userPlus', 14)}</i><em>还没有好友</em>`}</span>
-      </button>
-      <button class="hm-tile is-local" data-act="local">
+      <button class="hm-tile is-local is-wide" data-act="local">
         <img class="hm-art" src="${IMG}brand/blobs-vs.png" alt="">
         <b class="hm-name">本地对战</b>
         <span class="hm-desc">同一台手机 · 两人轮流下</span>
@@ -130,7 +118,9 @@
     });
   }
 
-  /* ================= B2 新手礼包、B6 离线收益 ================= */
+  Channel.stakes = () => stakeSheet();
+
+  /* ================= B2 新手礼包 ================= */
   // 点“全部领取”才算领过，和金币一起存盘：弹窗开着时关掉 app，下次进首页还会弹
   const GIFT = { coins: 1500 };
   let gifting = null; // 礼包弹窗开着时再进首页，不重复弹
@@ -155,73 +145,6 @@
     // 先教开局，让新用户马上玩上第一局；签到的引导等打完第一局回到首页再出（见 shown）
     await UI.coach(pageEl().querySelector('.hm-tile.is-quick'), '点这里马上开一局，赢家拿走奖池。先从新手场试试！', { key: 'play' });
   }
-  const offline = () => UI.reward({
-    title: '欢迎回来！',
-    sub: '你不在的时候，小团子帮你攒了些金币。',
-    img: `${IMG}brand/mascot.png`,
-    items: { coins: 20 },
-    btn: '收下',
-    note: '离线收益',
-  });
-
-  /* ================= B5 退出挽留 ================= */
-  async function retain() {
-    const n = Store.claimable() + (Store.canSign() ? 1 : 0);
-    const k = await UI.dialog({
-      img: `${IMG}brand/mascot-sad.png`,
-      title: '这就要走了？',
-      text: `还有<b>${n}个奖励</b>没领，再玩1局赢了<b>奖池翻倍</b>！`,
-      buttons: [
-        { label: '再玩1局 · 奖池翻倍', key: 'play', cls: 'btn-orange' },
-        { label: '领取奖励', key: 'claim', cls: 'btn-line' },
-        { label: '离开', key: 'leave', cls: 'btn-ghost' },
-      ],
-    });
-    if (k === 'play') {
-      Store.s.doubleNext = true;
-      Store.save();
-      // 和首页“开始游戏”一样按场次自动选择：金币不够上次场次时换成能进的一档
-      Battle.quick(pickStake().id);
-    } else if (k === 'claim') {
-      App.go('tasks');
-    } else if (k === 'leave') {
-      Channel.exit();
-    }
-  }
-
-  /* ================= V7 纯新用户还没有好友：和好友玩 → 引导先玩一局、加好友或邀请朋友 ================= */
-  function noFriends() {
-    const c = UI.sheet({
-      title: '还没有好友',
-      sub: '先玩游戏，再交朋友：对局中点对手头像、结算页点“加好友”都能加',
-      html: `<div class="nf-ops">
-        <button class="nf-op is-main" data-act="play"><span class="nf-op-ic">${UI.ic('play', 18)}</span><span class="row-main"><b>快速开始一局</b><span>和真人对战，打完就能加对手为好友</span></span>${UI.ic('right', 16)}</button>
-        <button class="nf-op" data-act="add"><span class="nf-op-ic">${UI.ic('userPlus', 18)}</span><span class="row-main"><b>添加好友</b><span>按昵称或 ID 搜索，或从“可能认识的人”里加</span></span>${UI.ic('right', 16)}</button>
-        <button class="nf-op" data-act="invite"><span class="nf-op-ic">${UI.ic('share', 18)}</span><span class="row-main"><b>邀请朋友来 Soulgame</b><span>发链接给朋友，下载后就能一起玩</span></span>${UI.ic('right', 16)}</button>
-      </div>`,
-      acts: {
-        play: () => { c.close(); Battle.quick(pickStake().id); },
-        add: () => { c.close(); App.go('addfriend'); },
-        invite: () => { c.close(); UI.share({ title: '邀请朋友', text: `来 Soulgame 和我一起下四子棋！我的ID是${Store.s.user.uid}` }); },
-      },
-    });
-  }
-
-  /* ================= K3 好友主动发来邀请（莉莉是好友时才会发） ================= */
-  function schedulePing() {
-    if (Store.s.pinged || pingTimer) return;
-    const tryPing = () => {
-      const free = App.TABS.includes(App.top()) && !UI.hasOverlay() && !document.querySelector('.coach');
-      if (!free || !Store.isFriend('lily')) { pingTimer = setTimeout(tryPing, 4000); return; }
-      pingTimer = 0;
-      Store.s.pinged = true;
-      Store.post('lily', { from: 'lily', type: 'invite', game: 'c4', room: 'lily', text: '来一局？我在房间等你！' });
-      // 设置 → 通知 →“游戏邀请”关掉后不弹 app 内通知，邀请照常进私聊（我的与设置 4.9）
-      if (Store.s.settings.invite) UI.notify({ img: D.people.lily.avatar, title: `${D.people.lily.name}邀请你一起玩`, text: `四子棋 · ${D.people.lily.name}的房间 1/2`, btn: '查看', ms: 7000, onTap: () => App.go('dm', { id: 'lily' }) });
-    };
-    pingTimer = setTimeout(tryPing, 22000);
-  }
-
   /* ================= 页面 ================= */
   App.page('play', {
     render(el) {
@@ -233,21 +156,11 @@
         </div>
         ${UI.tabbar('play')}`;
     },
-    async shown(el) {
+    async shown() {
       if (!Store.s.welcome) await welcome();
-      else if (pendingOffline) { pendingOffline = false; await offline(); }
-      else if (!Store.s.tips.sign && Store.s.cnt.all.games > 0 && !UI.hasOverlay()) {
-        // 打完第一局回到首页，再介绍签到
-        await UI.coach(el.querySelector('.lobby-sign'), '每天签到、做任务，免费领金币，第7天有大奖！', { key: 'sign' });
-      }
-      schedulePing();
     },
+    // 首发 1.0 没有退出挽留：在首页按返回键直接退出 app
     back() {
-      if (!retainShown && (Store.claimable() > 0 || Store.canSign())) {
-        retainShown = true;
-        retain();
-        return false;
-      }
       Channel.exit();
       return false;
     },
@@ -256,13 +169,6 @@
       local: () => Battle.local(),
       stakes: () => stakeSheet(),
       howto: () => Battle.howto(D.GAME, { manual: true }),
-      friends: async () => {
-        if (!Store.s.friends.length) { noFriends(); return; }
-        // V7 好友房没有免费档：金币连最低一档都不够时直接弹金币不足，不用先选好友
-        if (!Rooms.checkCoins()) return;
-        const uid = await UI.pickFriend({ title: '邀请好友下四子棋', sub: '选好友后再选入场金币', onlineOnly: true });
-        if (uid) Rooms.withFriend(uid);
-      },
     },
   });
 })();
